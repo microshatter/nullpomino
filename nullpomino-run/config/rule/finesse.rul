@@ -1,5 +1,5 @@
 #NullpoMino RuleData
-#Wed Apr 24 12:58:57 CST 2024
+#Fri Sep 18 22:16:33 CST 2026
 0.ruleopt.areCancelHold=false
 0.ruleopt.areCancelMove=false
 0.ruleopt.areCancelRotate=false
@@ -366,6 +366,6 @@
 0.ruleopt.softdropSpeed=20.0
 0.ruleopt.softdropSurfaceLock=false
 0.ruleopt.strRandomizer=net.omegaboshi.nullpomino.game.subsystem.randomizer.BagRandomizer
-0.ruleopt.strRuleName=my rule
+0.ruleopt.strRuleName=finesse
 0.ruleopt.strWallkick=mu.nu.nullpo.game.subsystem.wallkick.StandardWallkick
 0.ruleopt.style=0
