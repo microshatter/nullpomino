@@ -23,4 +23,4 @@ jobs:
 
       - name: Build with Maven
         working-directory: nullpomino-parent
-        run: nvm $MVN_FLAGS install
+        run: mvn $MVN_FLAGS install
