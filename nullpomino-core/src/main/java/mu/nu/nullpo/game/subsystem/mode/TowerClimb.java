@@ -56,7 +56,7 @@ public class TowerClimb extends AbstractMode {
     
     @Override 
     public boolean onReady(GameEngine engine, int playerID) {
-        return false
+        return false;
     }
 
     @Override 
@@ -75,7 +75,9 @@ public class TowerClimb extends AbstractMode {
     public void onLast(GameEngine engine, int playerID) {}
 
     @Override 
-    public boolean onGameOver(GameEngine engine, int playerID) {}
+    public boolean onGameOver(GameEngine engine, int playerID) {
+        return false;
+    }
 
     @Override 
     public void renderResult(GameEngine engine, int playerID) {}
