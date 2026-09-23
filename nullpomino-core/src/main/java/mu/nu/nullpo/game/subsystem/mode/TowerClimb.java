@@ -23,6 +23,18 @@ public class TowerClimb extends AbstractMode {
     private int kos;
 
     private int bgmlv;
+
+    // Mods
+    // 0 = disabled, 1 = enabled, 2 = reverse
+    private int mod_ex; // Expert
+    private int mod_nh; // No Hold
+    private int mod_ms; // Messiness
+    private int mod_gv; // Gravity
+    private int mod_vl; // Volatility
+    private int mod_dh; // Double Hole
+    private int mod_in; // Invisible
+    private int mod_as; // All Spin
+    private int mod_dp; // Duo, Unsupported
     
     @Override
     public String getName() {
