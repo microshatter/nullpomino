@@ -24,7 +24,7 @@ updates:
   #         - "*"
 
   - package-ecosystem: maven
-    directory: "nullpomino-parent/"
+    directory: "/nullpomino-parent"
     schedule:
       interval: weekly
     groups:
