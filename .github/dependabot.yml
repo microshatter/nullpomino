@@ -13,3 +13,12 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
