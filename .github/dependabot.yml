@@ -14,11 +14,29 @@ updates:
         patterns:
           - "*"
 
+  # - package-ecosystem: maven
+  #   directory: "nullpomino-core/"
+  #   schedule:
+  #     interval: weekly
+  #   groups:
+  #     maven-code-actions:
+  #       patterns:
+  #         - "*"
+
   - package-ecosystem: maven
-    directory: "/"
+    directory: "nullpomino-parent/"
     schedule:
       interval: weekly
     groups:
-      github-actions:
+      maven-code-actions:
         patterns:
           - "*"
+
+  # - package-ecosystem: maven
+  #   directory: "nullpomino-run/"
+  #   schedule:
+  #     interval: weekly
+  #   groups:
+  #     maven-code-actions:
+  #       patterns:
+  #         - "*"
