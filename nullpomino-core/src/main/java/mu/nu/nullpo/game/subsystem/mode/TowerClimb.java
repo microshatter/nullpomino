@@ -9,6 +9,7 @@ import mu.nu.nullpo.game.play.GameEngine;
 import mu.nu.nullpo.util.CustomProperties;
 import mu.nu.nullpo.util.GeneralUtil;
 import mu.nu.nullpo.game.component.Block;
+import mu.nu.nullpo.game.component.Piece;
 
 import org.apache.log4j.Logger;
 
@@ -35,7 +36,7 @@ public class TowerClimb extends AbstractMode {
 
     private final int PLAYER_COLOR_BLOCK = Block.BLOCK_COLOR_GRAY; // Garbage Block
 
-    private static final float[] tableFloors = {0, 50, 150, 300, 450, 650, 850, 1100, 1350, 1650};
+    private static final float[] tableFloors = {0, 50, 150, 300, 450, 650, 850, 1100, 1350, 1650, Float.POSITIVE_INFINITY};
 
     // Game Stats
     private float altitude;
@@ -48,9 +49,13 @@ public class TowerClimb extends AbstractMode {
     private int garbageSent;
 
     private int lastEvent;
+    private int lastCombo;
+    private int lastPiece;
 
     private int b2b;
 
+    private int speed_rank;
+    private float speed_exp;
 
     // Mods
     // 0 = disabled, 1 = enabled, 2 = reverse
@@ -80,7 +85,11 @@ public class TowerClimb extends AbstractMode {
         garbageSent = 0;
         garbage = 0;
         altitude = 0.0f;
+        speed_rank = 1;
+        speed_exp = 0;
         kos = 0;
+        b2b = 0;
+        lastEvent = EVENT_NONE;
 
         if (owner.replayMode) {
             loadSetting(owner.replayProp);
@@ -97,7 +106,15 @@ public class TowerClimb extends AbstractMode {
         bgmlv = 0;
     }
 
-    private void setSpeed(GameEngine engine) {}
+    private void setSpeed(GameEngine engine) {
+        engine.speed.are = 0;
+        engine.speed.areLine = 0;
+        if (mod_ms == 2) {
+            engine.speed.lineDelay = 70;
+        } else {
+            engine.speed.lineDelay = 0;
+        }
+    }
 
     @Override
     public void renderSetting(GameEngine engine, int playerID) {}
@@ -113,6 +130,7 @@ public class TowerClimb extends AbstractMode {
         engine.tspinEnable = true;
         engine.useAllSpinBonus = true;
         engine.b2bEnable = true;
+        setSpeed(engine);
     }
 
     @Override
@@ -124,21 +142,85 @@ public class TowerClimb extends AbstractMode {
 
         if ((engine.stat == GameEngine.Status.SETTING) || ((engine.stat == GameEngine.Status.RESULT) && (owner.replayMode == false))) {}
         else {
+            int time = engine.statistics.time;
             receiver.drawScoreFont(engine, playerID, 0, 3, "KO'S", EventReceiver.COLOR_BLUE);
             receiver.drawScoreFont(engine, playerID, 0, 4, String.valueOf(kos));
             
             receiver.drawScoreFont(engine, playerID, 0, 6, "PPS", EventReceiver.COLOR_BLUE);
             
             receiver.drawScoreFont(engine, playerID, 0, 9, "ATTACK", EventReceiver.COLOR_BLUE);
-            receiver.drawScoreFont(engine, playerID, 0, 13, String.valueOf(garbageSent));
+            receiver.drawScoreFont(engine, playerID, 0, 10, String.format("%d, %.2f/M", garbageSent, (float)(garbageSent * 3600) / (float)(time)));
+            
             
             receiver.drawScoreFont(engine, playerID, 0, 12, "TIME", EventReceiver.COLOR_BLUE);
-            int time = engine.statistics.time;
             receiver.drawScoreFont(engine, playerID, 0, 13, GeneralUtil.getTime(time));
             
             receiver.drawScoreFont(engine, playerID, 0, 15, "B2B", EventReceiver.COLOR_BLUE);
             receiver.drawScoreFont(engine, playerID, 0, 16, String.valueOf(b2b));
             
+            receiver.drawScoreFont(engine, playerID, 0, 18, "ALTITUDE", EventReceiver.COLOR_BLUE);
+            receiver.drawScoreFont(engine, playerID, 0, 19, String.valueOf(altitude));
+
+            if((lastEvent != EVENT_NONE)) { // && (scgettime < 120)
+                String strPieceName = Piece.getPieceName(lastPiece);
+            
+                switch(lastEvent) {
+                case EVENT_SINGLE:
+                    receiver.drawMenuFont(engine, playerID, 2, 21, "SINGLE", EventReceiver.COLOR_DARKBLUE);
+                    break;
+                case EVENT_DOUBLE:
+                    receiver.drawMenuFont(engine, playerID, 2, 21, "DOUBLE", EventReceiver.COLOR_BLUE);
+                    break;
+                case EVENT_TRIPLE:
+                    receiver.drawMenuFont(engine, playerID, 2, 21, "TRIPLE", EventReceiver.COLOR_GREEN);
+                    break;
+                case EVENT_FOUR:
+                    if(b2b > 0) receiver.drawMenuFont(engine, playerID, 3, 21, "FOUR", EventReceiver.COLOR_RED);
+                    else receiver.drawMenuFont(engine, playerID, 3, 21, "FOUR", EventReceiver.COLOR_ORANGE);
+                    break;
+                case EVENT_TSPIN_SINGLE_MINI:
+                    if(b2b > 0) receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-MINI-S", EventReceiver.COLOR_RED);
+                    else receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-MINI-S", EventReceiver.COLOR_ORANGE);
+                    break;
+                case EVENT_TSPIN_SINGLE:
+                    if(b2b > 0) receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-SINGLE", EventReceiver.COLOR_RED);
+                    else receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-SINGLE", EventReceiver.COLOR_ORANGE);
+                    break;
+                case EVENT_TSPIN_DOUBLE_MINI:
+                    if(b2b > 0) receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-MINI-D", EventReceiver.COLOR_RED);
+                    else receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-MINI-D", EventReceiver.COLOR_ORANGE);
+                    break;
+                case EVENT_TSPIN_DOUBLE:
+                    if(b2b > 0) receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-DOUBLE", EventReceiver.COLOR_RED);
+                    else receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-DOUBLE", EventReceiver.COLOR_ORANGE);
+                    break;
+                case EVENT_TSPIN_TRIPLE:
+                    if(b2b > 0) receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-TRIPLE", EventReceiver.COLOR_RED);
+                    else receiver.drawMenuFont(engine, playerID, 1, 21, strPieceName + "-TRIPLE", EventReceiver.COLOR_ORANGE);
+                    break;
+                case EVENT_TSPIN_EZ:
+                    if(b2b > 0) receiver.drawMenuFont(engine, playerID, 3, 21, "EZ-" + strPieceName, EventReceiver.COLOR_RED);
+                    else receiver.drawMenuFont(engine, playerID, 3, 21, "EZ-" + strPieceName, EventReceiver.COLOR_ORANGE);
+                    break;
+                }
+            
+                if(lastCombo >= 2) {
+                    receiver.drawMenuFont(engine, playerID, 2, 22, (lastCombo - 1) + "COMBO", EventReceiver.COLOR_CYAN);
+                }
+
+                if(garbage > 0) {
+                    int x = receiver.getFieldDisplayPositionX(engine, playerID);
+                    int y = receiver.getFieldDisplayPositionY(engine, playerID);
+                    int fontColor = EventReceiver.COLOR_WHITE;
+
+                    if (garbage >= 1) fontColor = EventReceiver.COLOR_YELLOW;
+                    if (garbage >= 3) fontColor = EventReceiver.COLOR_ORANGE;
+                    if (garbage >= 4) fontColor = EventReceiver.COLOR_RED;
+
+                    String strTempGarbage = String.format("%5d", garbage);
+                    receiver.drawDirectFont(engine, playerID, x + 96, y + 372, strTempGarbage, fontColor);
+                }
+            }
         }
     }
 
@@ -156,7 +238,6 @@ public class TowerClimb extends AbstractMode {
         // Attack
         if (lines > 0) {
             int pts = 0;
-            int ptsB2B = 0;
 
             if (engine.tspin) {
                 if(engine.tspinez) {
@@ -185,6 +266,9 @@ public class TowerClimb extends AbstractMode {
                 }
             } else {
                 if (lines == 1) {
+                    if (mod_ex == 0 && (engine.combo - 1 <= 0)) {
+                        pts += 1;
+                    }
                     lastEvent = EVENT_SINGLE;
                 } else if (lines == 2) {
                     pts += 1;
@@ -203,10 +287,62 @@ public class TowerClimb extends AbstractMode {
                 b2b += 1;
                 pts += 1;
             } else {
-                pts += b2b;
+                int b2b_surge = b2b;
+                if (b2b < 4) {
+                    b2b_surge = 0;
+                } else if (mod_as != 2) {
+                    b2b_surge = Math.max(0, b2b_surge - 3);
+                }
+                pts += b2b_surge;
                 b2b = 0;
             }
+
+            // Combo
+            if (engine.comboType != GameEngine.COMBO_TYPE_DISABLE) {
+                int cmbindex = engine.combo - 1;
+                if (cmbindex < 0) cmbindex = 0;
+                if (cmbindex >= COMBO_ATTACK_TABLE.length) cmbindex = COMBO_ATTACK_TABLE.length - 1;
+                pts += COMBO_ATTACK_TABLE[cmbindex];
+                lastCombo = engine.combo;
+            }
+
+            // All Clear
+            if ((lines >= 1) && (engine.field.isEmpty())) {
+                engine.playSE("bravo");
+                pts += 3;
+                b2b += 1;
+            }
+
+            // Attack lines count
+            garbageSent += pts;
+            lastPiece = engine.nowPieceObject.id;
+
+            // Cancelling
+            if (mod_dh != 2 && garbage > 0) {
+                garbage -= pts;
+                if (garbage < 0) {
+                    pts = Math.abs(garbage);
+                    garbage = 0;
+                } else {
+                    pts = 0;
+                }
+            }
+
+            // [TODO] send attack
+            if (pts > 0) {
+                garbage += pts;
+            }
         } 
+
+        if (lines <= 0) {
+            if (garbage > 0) {
+                engine.field.addSingleHoleGarbage(9, PLAYER_COLOR_BLOCK, engine.getSkin(), garbage);
+                garbage = 0;
+            }
+            if (mod_as == 0) {
+                lastEvent = EVENT_NONE;
+            }
+        }
     }
 
     @Override
