@@ -38,11 +38,15 @@ public class TowerClimb extends AbstractMode {
                              EVENT_TSPIN_EZ = 10,
                              EVENT_TSPIN_TRIPLE_MINI = 11;
 
-    private final int[] COMBO_ATTACK_TABLE = {0,0,1,1,2,2,3,3,4,4,4,5};
+    private final int[] COMBO_ATTACK_TABLE = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5};
 
     private final int PLAYER_COLOR_BLOCK = Block.BLOCK_COLOR_GRAY; // Garbage Block
 
     private static final float[] tableFloors = {0, 50, 150, 300, 450, 650, 850, 1100, 1350, 1650, Float.POSITIVE_INFINITY};
+    private static final float[] GravityBumps = {0, 0.48f, 0.3f, 0.3f, 0.3f, 0.3f, 0.3f, 0.3f, 0.3f, 0.3f, 0.3f};
+    private static final int[] GravLockDelay = {0, 30, 29, 28, 27, 26, 24, 22, 20, 18, 16};
+    private static final int[] GravRevLockDelay = {0, 24, 22, 20, 18, 16, 15, 14, 13, 12, 11};
+    private static final int[] SpeedrunReq = {7, 8, 8, 9, 9, 10, 0, 0, 0, 0, 0};
 
     // Game Stats
     private int kos;
@@ -61,7 +65,9 @@ public class TowerClimb extends AbstractMode {
     private int b2b;
 
     // CLimbing
+    private int current_floor;
     private float altitude;
+    private float altitude_bonus;
     private int speed_rank;
     private float speed_exp;
     private int speed_rank_locked_until;
@@ -81,6 +87,17 @@ public class TowerClimb extends AbstractMode {
     private int mod_dp; // Duo, Unsupported
 
     private int version;
+
+    private boolean game_started;
+
+    // Game Engine Helper Functions
+    private int return_frames_by_seconds(int seconds) {
+        return seconds * 60;
+    }
+    
+    private int return_frames_by_minutes(Float minutes) {
+        return (int) (minutes * 3600);
+    }
 
     @Override
     public String getName() {
@@ -105,7 +122,8 @@ public class TowerClimb extends AbstractMode {
         promotion_fatigue = 0;
         speed_rank_locked_until = 0;
         garbageEntries = new ArrayList<>();
-        lastHole = engine.random.nextInt(engine.field.getWidth());
+        current_floor = 1;
+        game_started = false;
 
         if (owner.replayMode) {
             loadSetting(owner.replayProp);
@@ -126,7 +144,13 @@ public class TowerClimb extends AbstractMode {
 
     private void garbagerising(GameEngine engine, int lines) {}
 
-    private void getTotalAmount(GameEngine engine) {}
+    private int getTotalAmount(GameEngine engine) {
+        int amount = 0;
+        for (int i = 0; i < garbageEntries.size(); i++) {
+            amount += garbageEntries.get(i);
+        }
+        return amount;
+    }
 
     private void setStartBgmlv(GameEngine engine) {
         bgmlv = 0;
@@ -156,8 +180,10 @@ public class TowerClimb extends AbstractMode {
         engine.tspinEnable = true;
         engine.useAllSpinBonus = true;
         engine.b2bEnable = true;
-        engine.field.addHurryupFloor(10, engine.getSkin());
+        // engine.field.addHurryupFloor(10, engine.getSkin());
+        lastHole = engine.random.nextInt(engine.field.getWidth());
         setSpeed(engine);
+        game_started = true;
     }
 
     @Override
@@ -174,11 +200,10 @@ public class TowerClimb extends AbstractMode {
             receiver.drawScoreFont(engine, playerID, 0, 4, String.valueOf(kos));
             
             receiver.drawScoreFont(engine, playerID, 0, 6, "PPS", EventReceiver.COLOR_BLUE);
-            receiver.drawScoreFont(engine, playerID, 0, 4, String.valueOf(engine.statistics.pps));
+            receiver.drawScoreFont(engine, playerID, 0, 7, String.format("%.2f", engine.statistics.pps));
             
             receiver.drawScoreFont(engine, playerID, 0, 9, "ATTACK", EventReceiver.COLOR_BLUE);
             receiver.drawScoreFont(engine, playerID, 0, 10, String.format("%d, %.2f/M", garbageSent, (float)(garbageSent * 3600) / (float)(time)));
-            
             
             receiver.drawScoreFont(engine, playerID, 0, 12, "TIME", EventReceiver.COLOR_BLUE);
             receiver.drawScoreFont(engine, playerID, 0, 13, GeneralUtil.getTime(time));
@@ -192,6 +217,7 @@ public class TowerClimb extends AbstractMode {
             String rank_str = String.format("%3d", speed_rank);
             receiver.drawScoreFont(engine, playerID, 0, 21, rank_str);
             String exp_str = String.format("%.1f/%d", speed_exp, 4 * speed_rank);
+            receiver.drawScoreFont(engine, playerID, 5, 21, exp_str);
 
             if((lastEvent != EVENT_NONE)) { // && (scgettime < 120)
                 String strPieceName = Piece.getPieceName(lastPiece);
@@ -262,10 +288,41 @@ public class TowerClimb extends AbstractMode {
         return super.onMove(engine, playerID);
     }
 
+    private int getFloorLevel(GameEngine engine, float alt) {
+        for (int i = 0; i < tableFloors.length; i++) {
+            if (alt < tableFloors[i]) {
+                return i;
+            }
+        }
+        return tableFloors.length;
+    }
+
+    private float getSpeedCap(GameEngine engine, float alt) {
+        float t = tableFloors[getFloorLevel(engine, alt)] - alt;
+        float speed_cap = Math.max(0, Math.min(1, (float)(t / 5 - 0.2)));
+        System.out.println(speed_cap);
+        return speed_cap;
+    }
+
     @Override
     public void onLast(GameEngine engine, int playerID) {
         int time = engine.statistics.time; // Note: game running on 60hz
         int rank = speed_rank;
+        float height0 = altitude;
+
+        if (time >= speed_rank_locked_until) {
+            int leakSpeed;
+            if (mod_dp == 0) {
+                if (mod_ex == 0) {
+                    leakSpeed = 3;                    
+                } else {
+                    leakSpeed = 5;
+                }
+            } else {
+                leakSpeed = 3;
+            }
+            speed_exp -= leakSpeed * (rank * rank + rank) / 3600;
+        }
         
         // climbing related
         float nextRankXP = 4 * rank;
@@ -291,6 +348,28 @@ public class TowerClimb extends AbstractMode {
         }
 
         speed_rank = Math.round(rank + speed_exp / (4 * rank));
+
+        float o = altitude;
+        int floor = getFloorLevel(engine, o);
+
+        if (mod_ex == 2) {
+            altitude = Math.max(tableFloors[floor - 1], (float)(o - 0.05 * (floor * floor + floor + 10) / 60));
+        } else {
+            altitude += 0.25 * rank / 60 * getSpeedCap(engine, o);
+        }
+
+        if (altitude_bonus > 0) {
+            if (altitude_bonus <= 0.05) {
+                altitude += altitude_bonus;
+                altitude_bonus = 0;
+            } else {
+                float delta = Math.min(10, (float)(0.1 * altitude_bonus));
+                altitude += delta;
+                altitude_bonus -= delta;
+            }
+        }
+
+        current_floor = floor;
     }
 
     @Override 
