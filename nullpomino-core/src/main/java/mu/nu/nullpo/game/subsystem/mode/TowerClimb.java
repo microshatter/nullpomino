@@ -88,6 +88,8 @@ public class TowerClimb extends AbstractMode {
 
     private int version;
 
+    private boolean option_guideline;
+
     private boolean game_started;
 
     // Game Engine Helper Functions
@@ -136,11 +138,11 @@ public class TowerClimb extends AbstractMode {
 
     protected void saveSetting(CustomProperties prop) {}
     
-    private void sendAttack(GameEngine engine, int amount, int cancelled) {
+    private void sendAttack(GameEngine engine, int amount) {
         float alt_add = 0.25f * speed_rank * amount;
 
         altitude_bonus += alt_add;
-        speed_exp += amount;
+        speed_exp += amount + 0.05;
     }
         
     private void recieveAttack(GameEngine engine, int amount) {
@@ -173,28 +175,57 @@ public class TowerClimb extends AbstractMode {
     }
 
     private void setSpeed(GameEngine engine) {
-        engine.speed.are = 0;
-        engine.speed.areLine = 0;
-        if (mod_ms == 2) {
-            engine.speed.lineDelay = 70;
+        if (option_guideline) {
+            engine.speed.are = 6;
+            if (mod_ms == 2) {
+                engine.speed.lineDelay = 45;
+                engine.speed.areLine = 45;
+            } else {
+                engine.speed.lineDelay = 15;
+                engine.speed.areLine = 15;
+            }
+            
         } else {
-            engine.speed.lineDelay = 0;
+            engine.speed.are = 0;
+            engine.speed.areLine = 0;
+            if (mod_ms == 2) {
+                engine.speed.lineDelay = 70;
+            } else {
+                engine.speed.lineDelay = 0;
+            }
+        }
+    }
+
+    private void updateGravity(GameEngine engine) {
+        engine.speed.gravity = (int)((0.02 + (0.0005 * (engine.statistics.time / 60.0))) * engine.speed.denominator);
+    }
+
+    private String returnModEnableStatus(int var) {
+        switch (var) {
+            case 0:
+                return "OFF";
+            case 1:
+                return "ON";
+            case 2:
+                return "REVERSE";
+            default:
+                return "???";
         }
     }
 
     @Override
     public void renderSetting(GameEngine engine, int playerID) {
         drawMenu(engine, playerID, receiver, 0, EventReceiver.COLOR_BLUE, 0, 
-            "GUIDELINE", GeneralUtil.getONorOFF(false),
-            "EXPERT", GeneralUtil.getONorOFF(false),
-            "NO HOLD", GeneralUtil.getONorOFF(false),
-            "MESSINESS", GeneralUtil.getONorOFF(false),
-            "GRAVITY", GeneralUtil.getONorOFF(false),
-            "VOLATILITY", GeneralUtil.getONorOFF(false),
-            "DOUBLE HOLE", GeneralUtil.getONorOFF(false),
-            "INVISIBLE", GeneralUtil.getONorOFF(false),
-            "ALL SPIN", GeneralUtil.getONorOFF(false),
-            "DUO", GeneralUtil.getONorOFF(false)
+            "GUIDELINE", GeneralUtil.getONorOFF(option_guideline),
+            "EXPERT", returnModEnableStatus(mod_ex),
+            "NO HOLD", returnModEnableStatus(mod_nh),
+            "MESSINESS", returnModEnableStatus(mod_ms),
+            "GRAVITY", returnModEnableStatus(mod_gv),
+            "VOLATILITY", returnModEnableStatus(mod_vl),
+            "DOUBLE HOLE", returnModEnableStatus(mod_dh),
+            "INVISIBLE", returnModEnableStatus(mod_in),
+            "ALL SPIN", returnModEnableStatus(mod_as),
+            "DUO", returnModEnableStatus(mod_dp)
         );
     }
 
@@ -208,8 +239,12 @@ public class TowerClimb extends AbstractMode {
 
                 switch (menuCursor) {
                    	case 0:
+                        option_guideline = !option_guideline;
                         break;
                    	case 1:
+                        mod_ex += change;
+                        if (mod_ex < 0) mod_ex = 2;
+                        if (mod_ex > 2) mod_ex = 0;
                         break;
                    	case 2:
                         break;
@@ -292,7 +327,17 @@ public class TowerClimb extends AbstractMode {
             receiver.drawScoreFont(engine, playerID, 0, 13, GeneralUtil.getTime(time));
             
             receiver.drawScoreFont(engine, playerID, 0, 15, "B2B", EventReceiver.COLOR_BLUE);
-            receiver.drawScoreFont(engine, playerID, 0, 16, String.valueOf(b2b));
+            int b2bcolor = EventReceiver.COLOR_RED;
+            if (b2b < 4) {
+                b2bcolor = EventReceiver.COLOR_WHITE;
+            } else if (b2b < 8) {
+                b2bcolor = EventReceiver.COLOR_CYAN;
+            } else if (b2b < 12) {
+                b2bcolor = EventReceiver.COLOR_GREEN;
+            } else if (b2b < 24) {
+                b2bcolor = EventReceiver.COLOR_YELLOW;
+            }
+            receiver.drawScoreFont(engine, playerID, 0, 16, String.valueOf(b2b), b2bcolor);
             
             receiver.drawScoreFont(engine, playerID, 0, 18, "FLOOR", EventReceiver.COLOR_BLUE);
             receiver.drawScoreFont(engine, playerID, 6, 18, String.format("%d", current_floor));
@@ -414,6 +459,7 @@ public class TowerClimb extends AbstractMode {
                     speed_exp += storedXP;
                     last_rank_change_was_promote = false;
                     rank--;
+                    engine.playSE("regret");
                 }
             } else if (speed_exp >= nextRankXP) {
                 speed_exp -= nextRankXP;
@@ -421,6 +467,7 @@ public class TowerClimb extends AbstractMode {
                 speed_rank_locked_until = time + Math.max(60, 60 * (5 - promotion_fatigue));
                 promotion_fatigue++;
                 rank++;
+                engine.playSE("cool");
             }
     
             if (last_rank_change_was_promote && speed_exp >= 2 * (rank - 1)) {
@@ -448,9 +495,13 @@ public class TowerClimb extends AbstractMode {
                     altitude_bonus -= delta;
                 }
             }
+            if (current_floor < floor) {
+                engine.playSE("levelup");
+            }
             current_floor = floor;
         }
         
+        updateGravity(engine);
     }
 
     @Override 
@@ -552,9 +603,16 @@ public class TowerClimb extends AbstractMode {
                 }
             }
 
-            // [TODO] send attack
             if (pts > 0) {
-                sendAttack(engine, pts, cancelled);
+                sendAttack(engine, pts);
+            }
+
+            if (cancelled > 0 && mod_ex == 0) {
+                speed_exp += cancelled + 0.05;
+            }
+
+            if (mod_ex == 0) {
+                speed_exp += Math.min(lines, 2) + 0.05;
             }
         } 
 
@@ -577,7 +635,9 @@ public class TowerClimb extends AbstractMode {
     @Override
     public void renderResult(GameEngine engine, int playerID) {
         drawResult(engine, playerID, receiver, 0, EventReceiver.COLOR_BLUE, "ALTITUDE", String.format("%10.1f", altitude));
-        drawResult(engine, playerID, receiver, 2, EventReceiver.COLOR_BLUE, "MODS", "WIP");
+        drawResult(engine, playerID, receiver, 2, EventReceiver.COLOR_BLUE, "FLOOR", String.format("%10d", current_floor));
+        drawResult(engine, playerID, receiver, 4, EventReceiver.COLOR_BLUE, "MODS", "WIP");
+        drawResultStats(engine, playerID, receiver, 6, EventReceiver.COLOR_BLUE, Statistic.TIME);
     }
 
     @Override
