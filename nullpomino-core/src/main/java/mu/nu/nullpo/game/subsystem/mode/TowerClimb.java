@@ -86,6 +86,10 @@ public class TowerClimb extends AbstractMode {
     private int mod_as; // All Spin
     private int mod_dp; // Duo, Unsupported
 
+    private int as_previous_action;
+    private int as_previous_action_piece;
+    private boolean as_last_spin_zero;
+
     private int version;
 
     private boolean option_guideline;
@@ -120,6 +124,8 @@ public class TowerClimb extends AbstractMode {
         kos = 0;
         b2b = 0;
         lastEvent = EVENT_NONE;
+        as_previous_action = EVENT_NONE;
+        as_previous_action_piece = Piece.PIECE_O;
         last_rank_change_was_promote = false;
         promotion_fatigue = 0;
         speed_rank_locked_until = 0;
@@ -247,20 +253,44 @@ public class TowerClimb extends AbstractMode {
                         if (mod_ex > 2) mod_ex = 0;
                         break;
                    	case 2:
+                        mod_nh += change;
+                        if (mod_nh < 0) mod_nh = 2;
+                        if (mod_nh > 2) mod_nh = 0;
                         break;
                    	case 3:
+                        mod_ms += change;
+                        if (mod_ms < 0) mod_ms = 2;
+                        if (mod_ms > 2) mod_ms = 0;
                         break;
                    	case 4:
+                        mod_gv += change;
+                        if (mod_gv < 0) mod_gv = 2;
+                        if (mod_gv > 2) mod_gv = 0;
                         break;
                    	case 5:
+                        mod_vl += change;
+                        if (mod_vl < 0) mod_vl = 2;
+                        if (mod_vl > 2) mod_vl = 0;
                         break;
                    	case 6:
+                        mod_dh += change;
+                        if (mod_dh < 0) mod_dh = 2;
+                        if (mod_dh > 2) mod_dh = 0;
                         break;
                    	case 7:
+                        mod_in += change;
+                        if (mod_in < 0) mod_in = 2;
+                        if (mod_in > 2) mod_in = 0;
                         break;
                    	case 8:
+                        mod_as += change;
+                        if (mod_as < 0) mod_as = 2;
+                        if (mod_as > 2) mod_as = 0;
                         break;
                    	case 9:
+                        mod_dp += change;
+                        if (mod_dp < 0) mod_dp = 2;
+                        if (mod_dp > 2) mod_dp = 0;
                         break;
                 }
             }
@@ -301,6 +331,16 @@ public class TowerClimb extends AbstractMode {
         // engine.field.addHurryupFloor(10, engine.getSkin());
         lastHole = engine.random.nextInt(engine.field.getWidth());
         setSpeed(engine);
+        if (mod_as == 2) {
+            for (int i = 0; i < 10; i++) {
+                engine.field.addSingleHoleGarbage(engine.random.nextInt(engine.field.getWidth()), PLAYER_COLOR_BLOCK, engine.getSkin(), 1);
+            }
+        }
+        if (mod_in == 2) {
+            for (int i = 0; i < 3; i++) {
+                engine.field.addSingleHoleGarbage(engine.random.nextInt(engine.field.getWidth()), PLAYER_COLOR_BLOCK, engine.getSkin(), 1);
+            }
+        }
         game_started = true;
     }
 
@@ -506,8 +546,10 @@ public class TowerClimb extends AbstractMode {
 
     @Override 
     public void calcScore(GameEngine engine, int playerID, int lines) {
+        boolean current_tspin = engine.tspin;
         // Attack
         if (lines > 0) {
+            as_last_spin_zero = false;
             int pts = 0;
 
             if (engine.tspin) {
@@ -536,6 +578,10 @@ public class TowerClimb extends AbstractMode {
                     }
                 }
             } else {
+                int original_lines = lines;
+                if (mod_as == 2) {
+                    lines = 1;
+                }
                 if (lines == 1) {
                     if (mod_ex == 0 && (engine.combo - 1 <= 0)) {
                         pts += 1;
@@ -617,12 +663,67 @@ public class TowerClimb extends AbstractMode {
         } 
 
         if (lines <= 0) {
+            if (engine.tspin) {
+                if (mod_as != 0) {
+                    if (current_tspin == as_last_spin_zero) {
+                        switch (mod_as) {
+                            case 1:
+                                engine.field.addSingleHoleGarbage(engine.random.nextInt(engine.field.getWidth()), PLAYER_COLOR_BLOCK, engine.getSkin(), 1);
+                                break;
+                            case 2:
+                                for (int i = 0; i < 20; i++) {
+                                    engine.field.addSingleHoleGarbage(engine.random.nextInt(engine.field.getWidth()), PLAYER_COLOR_BLOCK, engine.getSkin(), 1);
+                                }
+                                break;
+                        }
+                    }
+                    lastEvent = EVENT_NONE;
+                    as_last_spin_zero = true;
+                }
+            }
+            
             if (garbage > 0) {
                 garbagerising(engine, 8);
             }
             if (mod_as == 0) {
                 lastEvent = EVENT_NONE;
             }
+        }
+
+        if (mod_as != 0 && lastEvent != EVENT_NONE) {
+            int clear_piece = lastPiece;
+            switch (mod_as) {
+                case 1:
+                    if (lines > 0) {
+                        if (as_previous_action == lastEvent) {
+                            if (engine.tspin) {
+                                if (clear_piece == as_previous_action_piece) {
+                                    engine.field.addSingleHoleGarbage(engine.random.nextInt(engine.field.getWidth()), PLAYER_COLOR_BLOCK, engine.getSkin(), 1);
+                                }
+                            } else {
+                                engine.field.addSingleHoleGarbage(engine.random.nextInt(engine.field.getWidth()), PLAYER_COLOR_BLOCK, engine.getSkin(), 1);
+                            }
+                        }
+                    }
+                    break;
+                case 2:
+                    if (lines > 0) {
+                        if (as_previous_action == lastEvent) {
+                            if (engine.tspin) {
+                                for (int i = 0; i < 20; i++) {
+                                    engine.field.addSingleHoleGarbage(engine.random.nextInt(engine.field.getWidth()), PLAYER_COLOR_BLOCK, engine.getSkin(), 1);
+                                }
+                            } else {
+                                for (int i = 0; i < 20; i++) {
+                                    engine.field.addSingleHoleGarbage(engine.random.nextInt(engine.field.getWidth()), PLAYER_COLOR_BLOCK, engine.getSkin(), 1);
+                                }
+                            }
+                        }
+                    }
+                    break;
+            }
+            as_previous_action = lastEvent;
+            as_previous_action_piece = lastPiece;
         }
     }
 
