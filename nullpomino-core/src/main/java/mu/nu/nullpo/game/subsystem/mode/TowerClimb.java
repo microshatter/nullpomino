@@ -136,13 +136,29 @@ public class TowerClimb extends AbstractMode {
 
     protected void saveSetting(CustomProperties prop) {}
     
-    private void sendAttack(GameEngine engine, int amount) {}
+    private void sendAttack(GameEngine engine, int amount, int cancelled) {
+        float alt_add = 0.25f * speed_rank * amount;
+
+        altitude_bonus += alt_add;
+        speed_exp += amount;
+    }
         
     private void recieveAttack(GameEngine engine, int amount) {
         garbageEntries.add(amount);
+        garbage += amount;
     }
 
-    private void garbagerising(GameEngine engine, int lines) {}
+    private void garbagerising(GameEngine engine, int lines) {
+        int valid_lines = lines;
+        if (valid_lines > garbage) {
+            valid_lines = garbage;
+        }
+        if (valid_lines <= 0) return;
+        engine.field.addSingleHoleGarbage(lastHole, PLAYER_COLOR_BLOCK, engine.getSkin(), valid_lines);
+        lastHole = engine.random.nextInt(engine.field.getWidth());
+        garbage -= valid_lines;
+        if (garbage < 0) garbage = 0;
+    }
 
     private int getTotalAmount(GameEngine engine) {
         int amount = 0;
@@ -167,7 +183,74 @@ public class TowerClimb extends AbstractMode {
     }
 
     @Override
-    public void renderSetting(GameEngine engine, int playerID) {}
+    public void renderSetting(GameEngine engine, int playerID) {
+        drawMenu(engine, playerID, receiver, 0, EventReceiver.COLOR_BLUE, 0, 
+            "GUIDELINE", GeneralUtil.getONorOFF(false),
+            "EXPERT", GeneralUtil.getONorOFF(false),
+            "NO HOLD", GeneralUtil.getONorOFF(false),
+            "MESSINESS", GeneralUtil.getONorOFF(false),
+            "GRAVITY", GeneralUtil.getONorOFF(false),
+            "VOLATILITY", GeneralUtil.getONorOFF(false),
+            "DOUBLE HOLE", GeneralUtil.getONorOFF(false),
+            "INVISIBLE", GeneralUtil.getONorOFF(false),
+            "ALL SPIN", GeneralUtil.getONorOFF(false),
+            "DUO", GeneralUtil.getONorOFF(false)
+        );
+    }
+
+    @Override 
+    public boolean onSetting(GameEngine engine, int playerID) {
+        if (engine.owner.replayMode == false) {
+            int change = updateCursor(engine, 9, playerID);
+
+            if (change != 0) {
+                engine.playSE("change");
+
+                switch (menuCursor) {
+                   	case 0:
+                        break;
+                   	case 1:
+                        break;
+                   	case 2:
+                        break;
+                   	case 3:
+                        break;
+                   	case 4:
+                        break;
+                   	case 5:
+                        break;
+                   	case 6:
+                        break;
+                   	case 7:
+                        break;
+                   	case 8:
+                        break;
+                   	case 9:
+                        break;
+                }
+            }
+
+            if (engine.ctrl.isPush(Controller.BUTTON_A) && (menuTime >= 5)) {
+                engine.playSE("decide");
+                return false;
+            }
+
+            if (engine.ctrl.isPush(Controller.BUTTON_B))  {
+                engine.quitflag = true;
+            }
+
+            menuTime++;
+        } else {
+            menuTime++;
+            menuCursor = -1;
+
+            if (menuTime >= 60) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
 
     @Override
     public boolean onReady(GameEngine engine, int playerID) {
@@ -211,13 +294,15 @@ public class TowerClimb extends AbstractMode {
             receiver.drawScoreFont(engine, playerID, 0, 15, "B2B", EventReceiver.COLOR_BLUE);
             receiver.drawScoreFont(engine, playerID, 0, 16, String.valueOf(b2b));
             
-            receiver.drawScoreFont(engine, playerID, 0, 18, "ALTITUDE", EventReceiver.COLOR_BLUE);
-            receiver.drawScoreFont(engine, playerID, 0, 19, String.valueOf(altitude));
+            receiver.drawScoreFont(engine, playerID, 0, 18, "FLOOR", EventReceiver.COLOR_BLUE);
+            receiver.drawScoreFont(engine, playerID, 6, 18, String.format("%d", current_floor));
+            
+            receiver.drawScoreFont(engine, playerID, 0, 19, "ALT", EventReceiver.COLOR_BLUE);
+            receiver.drawScoreFont(engine, playerID, 4, 19, String.format("%.1f", altitude));
+            
 
-            String rank_str = String.format("%3d", speed_rank);
+            String rank_str = String.format("%d %.1f/%d", speed_rank, speed_exp, 4 * speed_rank);
             receiver.drawScoreFont(engine, playerID, 0, 21, rank_str);
-            String exp_str = String.format("%.1f/%d", speed_exp, 4 * speed_rank);
-            receiver.drawScoreFont(engine, playerID, 5, 21, exp_str);
 
             if((lastEvent != EVENT_NONE)) { // && (scgettime < 120)
                 String strPieceName = Piece.getPieceName(lastPiece);
@@ -300,7 +385,6 @@ public class TowerClimb extends AbstractMode {
     private float getSpeedCap(GameEngine engine, float alt) {
         float t = tableFloors[getFloorLevel(engine, alt)] - alt;
         float speed_cap = Math.max(0, Math.min(1, (float)(t / 5 - 0.2)));
-        System.out.println(speed_cap);
         return speed_cap;
     }
 
@@ -310,66 +394,63 @@ public class TowerClimb extends AbstractMode {
         int rank = speed_rank;
         float height0 = altitude;
 
-        if (time >= speed_rank_locked_until) {
-            int leakSpeed;
-            if (mod_dp == 0) {
-                if (mod_ex == 0) {
-                    leakSpeed = 3;                    
-                } else {
+        if (game_started) {
+            if (time >= speed_rank_locked_until) {
+                int leakSpeed = 3;
+                if (mod_ex > 0) {
                     leakSpeed = 5;
                 }
-            } else {
-                leakSpeed = 3;
+                float deduce = leakSpeed * (rank * rank + rank) / 3600.0f;
+                speed_exp -= deduce;
             }
-            speed_exp -= leakSpeed * (rank * rank + rank) / 3600;
+            
+            // climbing related
+            float nextRankXP = 4 * rank;
+            float storedXP = 4 * (rank - 1);
+            if (speed_exp < 0) {
+                if (rank <= 1) {
+                    speed_exp = 0;
+                } else {
+                    speed_exp += storedXP;
+                    last_rank_change_was_promote = false;
+                    rank--;
+                }
+            } else if (speed_exp >= nextRankXP) {
+                speed_exp -= nextRankXP;
+                last_rank_change_was_promote = true;
+                speed_rank_locked_until = time + Math.max(60, 60 * (5 - promotion_fatigue));
+                promotion_fatigue++;
+                rank++;
+            }
+    
+            if (last_rank_change_was_promote && speed_exp >= 2 * (rank - 1)) {
+                promotion_fatigue = 0;
+            }
+    
+            speed_rank = (int)(rank + speed_exp / (4 * rank));
+    
+            float o = altitude;
+            int floor = getFloorLevel(engine, o);
+    
+            if (mod_ex == 2) {
+                altitude = Math.max(tableFloors[floor - 1], (float)(o - 0.05 * (floor * floor + floor + 10) / 60));
+            } else {
+                altitude += 0.25 * rank / 60 * getSpeedCap(engine, o);
+            }
+    
+            if (altitude_bonus > 0) {
+                if (altitude_bonus <= 0.05) {
+                    altitude += altitude_bonus;
+                    altitude_bonus = 0;
+                } else {
+                    float delta = Math.min(10, (float)(0.1 * altitude_bonus));
+                    altitude += delta;
+                    altitude_bonus -= delta;
+                }
+            }
+            current_floor = floor;
         }
         
-        // climbing related
-        float nextRankXP = 4 * rank;
-        float storedXP = 4 * (rank - 1);
-        if (speed_exp < 0) {
-            if (rank <= 1) {
-                speed_exp = 0;
-            } else {
-                speed_exp += storedXP;
-                last_rank_change_was_promote = false;
-                rank--;
-            }
-        } else if (speed_exp >= nextRankXP) {
-            speed_exp -= nextRankXP;
-            last_rank_change_was_promote = true;
-            speed_rank_locked_until = time + Math.max(60, 60 * (5 - promotion_fatigue));
-            promotion_fatigue++;
-            rank++;
-        }
-
-        if (last_rank_change_was_promote && speed_exp >= 2 * (rank - 1)) {
-            promotion_fatigue = 0;
-        }
-
-        speed_rank = Math.round(rank + speed_exp / (4 * rank));
-
-        float o = altitude;
-        int floor = getFloorLevel(engine, o);
-
-        if (mod_ex == 2) {
-            altitude = Math.max(tableFloors[floor - 1], (float)(o - 0.05 * (floor * floor + floor + 10) / 60));
-        } else {
-            altitude += 0.25 * rank / 60 * getSpeedCap(engine, o);
-        }
-
-        if (altitude_bonus > 0) {
-            if (altitude_bonus <= 0.05) {
-                altitude += altitude_bonus;
-                altitude_bonus = 0;
-            } else {
-                float delta = Math.min(10, (float)(0.1 * altitude_bonus));
-                altitude += delta;
-                altitude_bonus -= delta;
-            }
-        }
-
-        current_floor = floor;
     }
 
     @Override 
@@ -458,26 +539,28 @@ public class TowerClimb extends AbstractMode {
 
             // Cancelling
             int original_attack = pts;
+            int cancelled = 0;
             if (mod_dh != 2 && garbage > 0) {
                 garbage -= pts;
                 if (garbage < 0) {
                     pts = Math.abs(garbage);
+                    cancelled = original_attack - pts;
                     garbage = 0;
                 } else {
+                    cancelled = pts;
                     pts = 0;
                 }
             }
 
             // [TODO] send attack
             if (pts > 0) {
-                // garbage += pts;
+                sendAttack(engine, pts, cancelled);
             }
         } 
 
         if (lines <= 0) {
             if (garbage > 0) {
-                engine.field.addSingleHoleGarbage(engine.random.nextInt(engine.field.getWidth()), PLAYER_COLOR_BLOCK, engine.getSkin(), garbage);
-                garbage = 0;
+                garbagerising(engine, 8);
             }
             if (mod_as == 0) {
                 lastEvent = EVENT_NONE;
@@ -487,13 +570,14 @@ public class TowerClimb extends AbstractMode {
 
     @Override
     public boolean onGameOver(GameEngine engine, int playerID) {
+        game_started = false;
         return false;
     }
 
     @Override
     public void renderResult(GameEngine engine, int playerID) {
-        drawResult(engine, playerID, receiver, 0, EventReceiver.COLOR_BLUE, "MODE IS WIP");
-        drawResult(engine, playerID, receiver, 1, EventReceiver.COLOR_BLUE, "REPLAY IS UNAVAILABLE");
+        drawResult(engine, playerID, receiver, 0, EventReceiver.COLOR_BLUE, "ALTITUDE", String.format("%10.1f", altitude));
+        drawResult(engine, playerID, receiver, 2, EventReceiver.COLOR_BLUE, "MODS", "WIP");
     }
 
     @Override
