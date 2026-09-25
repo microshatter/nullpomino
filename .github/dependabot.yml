@@ -14,29 +14,38 @@ updates:
         patterns:
           - "*"
 
-  # - package-ecosystem: maven
-  #   directory: "nullpomino-core/"
-  #   schedule:
-  #     interval: weekly
-  #   groups:
-  #     maven-code-actions:
-  #       patterns:
-  #         - "*"
-
   - package-ecosystem: maven
     directory: "/nullpomino-parent"
     schedule:
       interval: weekly
+    open-pull-requests-limit: 10
     groups:
-      maven-code-actions:
+      maven:
         patterns:
           - "*"
 
-  # - package-ecosystem: maven
-  #   directory: "nullpomino-run/"
-  #   schedule:
-  #     interval: weekly
-  #   groups:
-  #     maven-code-actions:
-  #       patterns:
-  #         - "*"
+
+  - package-ecosystem: maven
+    directory: "/nullpomino-core"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    ignore:
+      # LWJGL 3 is API-incompatible with the LWJGL 2.x code base
+      - dependency-name: "org.lwjgl.lwjgl:*"
+        update-types:
+          - "version-update:semver-major"
+    groups:
+      maven:
+        patterns:
+          - "*"
+
+  - package-ecosystem: maven
+    directory: "/nullpomino-run"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      maven:
+        patterns:
+          - "*"
